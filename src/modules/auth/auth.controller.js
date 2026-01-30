@@ -1,0 +1,192 @@
+const bcrypt = require("bcrypt");
+const prisma = require("../../config/db");
+const { generateUserToken } = require("../../utils/jwt");
+const { generateOTP, hashOTP, verifyOTP } = require("../../utils/otp");
+
+/**
+ * STEP 1: Initiate Registration (Send OTP)
+ * POST /auth/register/initiate
+ */
+const initiateRegistration = async (req, res) => {
+  try {
+    const { name, email, phone, password } = req.body;
+
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Check if email or phone already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { phone }],
+      },
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        message: "User with email or phone already exists",
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const otpHash = await hashOTP(otp);
+
+    // Store OTP
+    await prisma.otpVerification.create({
+      data: {
+        phone,
+        otpHash,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
+      },
+    });
+
+    // ⚠️ DEV ONLY — replace with SMS gateway later
+    console.log("OTP (DEV ONLY):", otp);
+
+    return res.status(200).json({
+      message: "OTP sent to phone number",
+    });
+  } catch (error) {
+    console.error("Initiate Registration Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/**
+ * STEP 2: Verify OTP & Create User
+ * POST /auth/register/verify
+ */
+const verifyOtpAndRegister = async (req, res) => {
+  try {
+    const { name, email, phone, password, otp } = req.body;
+
+    if (!name || !email || !phone || !password || !otp) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Get latest OTP
+    const otpRecord = await prisma.otpVerification.findFirst({
+      where: { phone },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!otpRecord || otpRecord.expiresAt < new Date()) {
+      return res.status(400).json({ message: "OTP expired or invalid" });
+    }
+
+    // Verify OTP
+    const isValidOtp = await verifyOTP(otp, otpRecord.otpHash);
+    if (!isValidOtp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        phone,
+        passwordHash,
+        isPhoneVerified: true,
+      },
+    });
+
+    // Generate JWT
+    const token = generateUserToken(user);
+
+    return res.status(201).json({
+      message: "User registered successfully",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      },
+    });
+  } catch (error) {
+    console.error("Verify OTP Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = {
+  initiateRegistration,
+  verifyOtpAndRegister,
+};
+
+/**
+ * USER LOGIN (Email OR Phone)
+ * POST /auth/login
+ */
+const loginUser = async (req, res) => {
+  try {
+    const { identifier, password } = req.body;
+
+    if (!identifier || !password) {
+      return res.status(400).json({
+        message: "Identifier and password are required",
+      });
+    }
+
+    // Find user by email OR phone
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: identifier }, { phone: identifier }],
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        message: "Account is inactive",
+      });
+    }
+
+    // Compare password
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user.passwordHash
+    );
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    // Generate JWT
+    const token = generateUserToken(user);
+
+    return res.status(200).json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      },
+    });
+  } catch (error) {
+    console.error("Login Error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+module.exports = {
+  initiateRegistration,
+  verifyOtpAndRegister,
+  loginUser,
+};

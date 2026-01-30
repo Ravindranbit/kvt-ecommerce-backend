@@ -8,13 +8,15 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  name          String
-  email         String   @unique
-  passwordHash  String
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  phone           String   @unique
+  passwordHash    String
+  isPhoneVerified Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Admin {
@@ -27,6 +29,15 @@ model Admin {
   lastLogin     DateTime?
   createdAt     DateTime @default(now())
 }
+
+model OtpVerification {
+  id        String   @id @default(uuid())
+  phone     String
+  otpHash   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
 
 enum AdminRole {
   SUPER_ADMIN
