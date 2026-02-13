@@ -178,12 +178,6 @@ const changeAdminPassword = async (req, res) => {
   }
 };
 
-module.exports = {
-  adminLogin,
-  createAdmin,
-  changeAdminPassword,
-};
-
 /**
  * SUPER ADMIN → LIST ALL ADMINS
  * GET /admin/all
@@ -275,4 +269,12 @@ const updateAdminStatus = async (req, res) => {
       message: "Internal server error",
     });
   }
+};
+
+module.exports = {
+  adminLogin,
+  createAdmin,
+  changeAdminPassword,
+  listAdmins,
+  updateAdminStatus,
 };
