@@ -222,3 +222,57 @@ const listAdmins = async (req, res) => {
     });
   }
 };
+
+/**
+ * SUPER ADMIN → ACTIVATE / DEACTIVATE ADMIN
+ * PATCH /admin/:id/status
+ */
+const updateAdminStatus = async (req, res) => {
+  try {
+    if (req.user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Only Super Admin can update admin status",
+      });
+    }
+
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({
+        message: "isActive must be true or false",
+      });
+    }
+
+    const admin = await prisma.admin.findUnique({
+      where: { id },
+    });
+
+    if (!admin) {
+      return res.status(404).json({
+        message: "Admin not found",
+      });
+    }
+
+    // Prevent Super Admin from deactivating himself
+    if (admin.id === req.user.sub) {
+      return res.status(400).json({
+        message: "You cannot deactivate yourself",
+      });
+    }
+
+    await prisma.admin.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    return res.status(200).json({
+      message: `Admin ${isActive ? "activated" : "deactivated"} successfully`,
+    });
+  } catch (error) {
+    console.error("Update Admin Status Error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
