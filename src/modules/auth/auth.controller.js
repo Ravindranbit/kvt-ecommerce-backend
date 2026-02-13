@@ -93,6 +93,66 @@ if (lastOtp) {
   }
 };
 
+    /**
+     * RESEND OTP
+     * POST /auth/register/resend-otp
+     */
+    const resendOtp = async (req, res) => {
+      try {
+        const { phone } = req.body;
+
+        if (!phone) {
+          return res.status(400).json({
+            message: "Phone number is required",
+          });
+        }
+
+        // Check cooldown
+        const lastOtp = await prisma.otpVerification.findFirst({
+          where: { phone },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (!lastOtp) {
+          return res.status(400).json({
+            message: "No registration attempt found. Please initiate registration.",
+          });
+        }
+
+        const timeDiff = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
+
+        if (timeDiff < 60) {
+          return res.status(429).json({
+            message: "Please wait before requesting a new OTP",
+          });
+        }
+
+        // Generate new OTP
+        const otp = generateOTP();
+        const otpHash = await hashOTP(otp);
+
+        await prisma.otpVerification.create({
+          data: {
+            phone,
+            otpHash,
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+          },
+        });
+
+        await sendOTP(phone, otp);
+
+        return res.status(200).json({
+          message: "OTP resent successfully",
+        });
+      } catch (error) {
+        console.error("Resend OTP Error:", error);
+        return res.status(500).json({
+          message: "Failed to resend OTP",
+        });
+      }
+    };
+
+
 /**
  * STEP 2: Verify OTP & Create User
  * POST /auth/register/verify
@@ -225,11 +285,6 @@ const loginUser = async (req, res) => {
   }
 };
 
-module.exports = {
-  initiateRegistration,
-  verifyOtpAndRegister,
-  loginUser,
-};
 
 /**
  * GET LOGGED-IN USER
@@ -268,4 +323,5 @@ module.exports = {
   verifyOtpAndRegister,
   loginUser,
   getMe,
+  resendOtp,
 };
