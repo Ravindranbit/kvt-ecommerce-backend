@@ -183,3 +183,42 @@ module.exports = {
   createAdmin,
   changeAdminPassword,
 };
+
+/**
+ * SUPER ADMIN → LIST ALL ADMINS
+ * GET /admin/all
+ */
+const listAdmins = async (req, res) => {
+  try {
+    if (req.user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Only Super Admin can view admins",
+      });
+    }
+
+    const admins = await prisma.admin.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        isTemporaryPassword: true,
+        lastLogin: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.status(200).json({
+      admins,
+    });
+  } catch (error) {
+    console.error("List Admins Error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
