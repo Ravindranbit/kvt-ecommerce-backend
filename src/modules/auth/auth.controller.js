@@ -2,6 +2,9 @@ const bcrypt = require("bcrypt");
 const prisma = require("../../config/db");
 const { generateUserToken } = require("../../utils/jwt");
 const { generateOTP, hashOTP, verifyOTP } = require("../../utils/otp");
+const { sendOTP } = require("../../utils/sms");
+
+
 
 /**
  * STEP 1: Initiate Registration (Send OTP)
@@ -40,9 +43,10 @@ const initiateRegistration = async (req, res) => {
         expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
       },
     });
+    
+    // Send OTP via SMS
+    await sendOTP(phone, otp);
 
-    // ⚠️ DEV ONLY — replace with SMS gateway later
-    console.log("OTP (DEV ONLY):", otp);
 
     return res.status(200).json({
       message: "OTP sent to phone number",
