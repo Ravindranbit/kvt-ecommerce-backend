@@ -4,7 +4,6 @@ const { generateAdminToken } = require("../../utils/jwt");
 
 /**
  * ADMIN LOGIN
- * POST /admin/login
  */
 const adminLogin = async (req, res) => {
   try {
@@ -43,13 +42,21 @@ const adminLogin = async (req, res) => {
       });
     }
 
+    // Update last login
+    await prisma.admin.update({
+      where: { id: admin.id },
+      data: { lastLogin: new Date() },
+    });
+
     const token = generateAdminToken(admin);
 
     return res.status(200).json({
       message: "Admin login successful",
       token,
+      forcePasswordChange: admin.isTemporaryPassword,
       admin: {
         id: admin.id,
+        name: admin.name,
         email: admin.email,
         role: admin.role,
       },
@@ -62,6 +69,117 @@ const adminLogin = async (req, res) => {
   }
 };
 
+/**
+ * SUPER ADMIN → CREATE ADMIN
+ */
+const createAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({
+        message: "Only Super Admin can create admins",
+      });
+    }
+
+    const { name, email, role, temporaryPassword } = req.body;
+
+    if (!name || !email || !role || !temporaryPassword) {
+      return res.status(400).json({
+        message: "Name, email, role and temporary password are required",
+      });
+    }
+
+    const existingAdmin = await prisma.admin.findUnique({
+      where: { email },
+    });
+
+    if (existingAdmin) {
+      return res.status(409).json({
+        message: "Admin already exists",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+    const admin = await prisma.admin.create({
+      data: {
+        name,
+        email,
+        role,
+        passwordHash,
+        isTemporaryPassword: true,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Admin created successfully",
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        temporaryPassword: true,
+      },
+    });
+  } catch (error) {
+    console.error("Create Admin Error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+/**
+ * ADMIN → CHANGE PASSWORD
+ */
+const changeAdminPassword = async (req, res) => {
+  try {
+    const adminId = req.user.sub;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Old and new password required",
+      });
+    }
+
+    const admin = await prisma.admin.findUnique({
+      where: { id: adminId },
+    });
+
+    const isValid = await bcrypt.compare(
+      oldPassword,
+      admin.passwordHash
+    );
+
+    if (!isValid) {
+      return res.status(401).json({
+        message: "Old password incorrect",
+      });
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+
+    await prisma.admin.update({
+      where: { id: adminId },
+      data: {
+        passwordHash: newHash,
+        isTemporaryPassword: false,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.error("Change Password Error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   adminLogin,
+  createAdmin,
+  changeAdminPassword,
 };
