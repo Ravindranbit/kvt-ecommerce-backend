@@ -31,6 +31,42 @@ const initiateRegistration = async (req, res) => {
       });
     }
 
+
+  // Check last OTP for this phone
+  const lastOtp = await prisma.otpVerification.findFirst({
+  where: { phone },
+  orderBy: { createdAt: "desc" },
+});
+
+if (lastOtp) {
+  const timeDiff = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
+
+  // Cooldown: 60 seconds
+  if (timeDiff < 60) {
+    return res.status(429).json({
+      message: "Please wait before requesting a new OTP",
+    });
+  }
+
+  // Limit: max 3 OTPs in 10 minutes
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+  const otpCount = await prisma.otpVerification.count({
+    where: {
+      phone,
+      createdAt: {
+        gte: tenMinutesAgo,
+      },
+    },
+  });
+
+  if (otpCount >= 3) {
+    return res.status(429).json({
+      message: "Too many OTP requests. Try again later.",
+    });
+  }
+}
+
     // Generate OTP
     const otp = generateOTP();
     const otpHash = await hashOTP(otp);
