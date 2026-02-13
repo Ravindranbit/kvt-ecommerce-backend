@@ -20,15 +20,17 @@ model User {
 }
 
 model Admin {
-  id            String   @id @default(uuid())
-  name          String
-  email         String   @unique
-  passwordHash  String
-  role          AdminRole
-  isActive      Boolean  @default(true)
-  lastLogin     DateTime?
-  createdAt     DateTime @default(now())
+  id                  String     @id @default(uuid())
+  name                String
+  email               String     @unique
+  passwordHash        String
+  role                AdminRole
+  isActive            Boolean    @default(true)
+  isTemporaryPassword Boolean    @default(true)
+  lastLogin           DateTime?
+  createdAt           DateTime   @default(now())
 }
+
 
 model OtpVerification {
   id        String   @id @default(uuid())
