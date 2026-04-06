@@ -57,6 +57,18 @@ const wouldCreateCycle = (categories, categoryId, nextParentId) => {
 	return false;
 };
 
+const getAllDescendantIds = (categories, parentId) => {
+	let ids = [];
+	const children = categories.filter((cat) => cat.parentId === parentId);
+
+	for (const child of children) {
+		ids.push(child.id);
+		ids = ids.concat(getAllDescendantIds(categories, child.id));
+	}
+
+	return ids;
+};
+
 const createCategory = async (req, res) => {
 	try {
 		const { name, description, parentId } = req.body;
@@ -283,29 +295,40 @@ const getCategoryBySlug = async (req, res) => {
 	try {
 		const { slug } = req.params;
 
-		const category = await prisma.category.findFirst({
-			where: {
-				slug,
-				isActive: true,
-			},
-			include: {
-				products: {
-					where: { isActive: true },
-					orderBy: { createdAt: "desc" },
-				},
-			},
+		const allCategories = await prisma.category.findMany({
+			where: { isActive: true },
 		});
 
-		if (!category) {
+		const category = await prisma.category.findUnique({
+			where: { slug },
+		});
+
+		if (!category || !category.isActive) {
 			return res.status(404).json({
 				success: false,
 				message: "Category not found",
 			});
 		}
 
+		const descendantIds = getAllDescendantIds(allCategories, category.id);
+		const allCategoryIds = [category.id, ...descendantIds];
+
+		const products = await prisma.product.findMany({
+			where: {
+				isActive: true,
+				categoryId: {
+					in: allCategoryIds,
+				},
+			},
+			orderBy: { createdAt: "desc" },
+		});
+
 		return res.status(200).json({
 			success: true,
-			data: category,
+			data: {
+				...category,
+				products,
+			},
 		});
 	} catch (error) {
 		console.error("Get Category By Slug Error:", error);
