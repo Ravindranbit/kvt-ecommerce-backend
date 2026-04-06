@@ -20,17 +20,16 @@ model User {
 }
 
 model Admin {
-  id                  String     @id @default(uuid())
+  id                  String    @id @default(uuid())
   name                String
-  email               String     @unique
+  email               String    @unique
   passwordHash        String
   role                AdminRole
-  isActive            Boolean    @default(true)
-  isTemporaryPassword Boolean    @default(true)
+  isActive            Boolean   @default(true)
+  isTemporaryPassword Boolean   @default(true)
   lastLogin           DateTime?
-  createdAt           DateTime   @default(now())
+  createdAt           DateTime  @default(now())
 }
-
 
 model OtpVerification {
   id        String   @id @default(uuid())
@@ -41,17 +40,37 @@ model OtpVerification {
 }
 
 model Product {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String
   price       Float
   stock       Int
   imageUrl    String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoryId])
 }
 
+model Category {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique
+  description String?
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([parentId])
+  @@index([slug])
+}
 
 enum AdminRole {
   SUPER_ADMIN
