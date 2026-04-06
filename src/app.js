@@ -7,6 +7,7 @@ const app = express();
 const adminRoutes = require("./modules/admin/admin.routes");
 const productRoutes = require("./modules/product/product.routes");
 const categoryRoutes = require("./modules/category/category.routes");
+const cartRoutes = require("./modules/cart/cart.routes");
 
 
 
@@ -24,5 +25,6 @@ app.use("/admin", adminRoutes);
 
 app.use("/products", productRoutes);
 app.use("/categories", categoryRoutes);
+app.use("/cart", cartRoutes);
 
 module.exports = app;
