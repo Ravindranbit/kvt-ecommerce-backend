@@ -16,6 +16,7 @@ model User {
   isPhoneVerified Boolean  @default(false)
   isActive        Boolean  @default(true)
   cart            Cart?
+  orders          Order[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -41,18 +42,19 @@ model OtpVerification {
 }
 
 model Product {
-  id          String     @id @default(uuid())
+  id          String      @id @default(uuid())
   name        String
   description String
   price       Float
   stock       Int
   imageUrl    String?
   categoryId  String
-  category    Category   @relation(fields: [categoryId], references: [id])
+  category    Category    @relation(fields: [categoryId], references: [id])
   cartItems   CartItem[]
-  isActive    Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  orderItems  OrderItem[]
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   @@index([categoryId])
 }
@@ -96,7 +98,39 @@ model CartItem {
   @@unique([cartId, productId])
 }
 
+model Order {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  totalAmount Float
+  status      OrderStatus @default(PENDING)
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  productId String
+  name      String
+  price     Float
+  quantity  Int
+  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 enum AdminRole {
   SUPER_ADMIN
   ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
 }
