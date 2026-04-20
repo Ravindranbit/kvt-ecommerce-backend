@@ -9,11 +9,20 @@ const getUserId = (req) => {
 const createOrder = async (req, res) => {
   try {
     const userId = getUserId(req);
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!userId) {
       return res.status(401).json({
         success: false,
         message: "Authentication required",
+      });
+    }
+
+    if (!keyId || !keySecret) {
+      return res.status(500).json({
+        success: false,
+        message: "Razorpay credentials are not configured",
       });
     }
 
@@ -52,8 +61,8 @@ const createOrder = async (req, res) => {
     );
 
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
+      key_id: keyId,
+      key_secret: keySecret,
     });
 
     const amountInPaise = Math.round(totalAmount * 100);
@@ -109,11 +118,19 @@ const createOrder = async (req, res) => {
 const verifyPayment = async (req, res) => {
   try {
     const userId = getUserId(req);
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!userId) {
       return res.status(401).json({
         success: false,
         message: "Authentication required",
+      });
+    }
+
+    if (!keySecret) {
+      return res.status(500).json({
+        success: false,
+        message: "Razorpay credentials are not configured",
       });
     }
 
@@ -129,8 +146,6 @@ const verifyPayment = async (req, res) => {
         message: "razorpay_order_id, razorpay_payment_id and razorpay_signature are required",
       });
     }
-
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     const expectedSignature = crypto
       .createHmac("sha256", keySecret)
