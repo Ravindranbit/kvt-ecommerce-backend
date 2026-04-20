@@ -20,9 +20,9 @@ const createOrder = async (req, res) => {
     }
 
     if (!keyId || !keySecret) {
-      return res.status(500).json({
+      return res.status(503).json({
         success: false,
-        message: "Razorpay credentials are not configured",
+        message: "Payment service not configured",
       });
     }
 
@@ -128,9 +128,9 @@ const verifyPayment = async (req, res) => {
     }
 
     if (!keySecret) {
-      return res.status(500).json({
+      return res.status(503).json({
         success: false,
-        message: "Razorpay credentials are not configured",
+        message: "Payment service not configured",
       });
     }
 
