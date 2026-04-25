@@ -31,15 +31,20 @@ const placeOrder = async (req, res) => {
       });
     }
 
-    const hasInactiveProduct = cart.items.some(
-      (item) => !item.product || !item.product.isActive
-    );
+    for (const item of cart.items) {
+      if (!item.product || !item.product.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: `Product ${item.product?.name || item.productId} is not available`,
+        });
+      }
 
-    if (hasInactiveProduct) {
-      return res.status(400).json({
-        success: false,
-        message: "Cart contains inactive or unavailable products",
-      });
+      if (item.quantity > item.product.stock) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for ${item.product.name}`,
+        });
+      }
     }
 
     const totalAmount = cart.items.reduce(
@@ -67,6 +72,17 @@ const placeOrder = async (req, res) => {
       await tx.orderItem.createMany({
         data: orderItemsData,
       });
+
+      for (const item of cart.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: {
+              decrement: item.quantity,
+            },
+          },
+        });
+      }
 
       await tx.cartItem.deleteMany({
         where: { cartId: cart.id },
