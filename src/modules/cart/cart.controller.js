@@ -22,7 +22,7 @@ const addToCart = async (req, res) => {
 
     const product = await prisma.product.findFirst({
       where: { id: productId, isActive: true },
-      select: { id: true },
+      select: { id: true, price: true },
     });
 
     if (!product) {
@@ -65,6 +65,7 @@ const addToCart = async (req, res) => {
         data: {
           cartId: cart.id,
           productId,
+          price: product.price,
           quantity,
         },
       });
