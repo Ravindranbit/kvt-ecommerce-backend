@@ -10,6 +10,7 @@ const categoryRoutes = require("./modules/category/category.routes");
 const cartRoutes = require("./modules/cart/cart.routes");
 const orderRoutes = require("./modules/order/order.routes");
 const paymentRoutes = require("./modules/payment/payment.routes");
+const { errorHandler } = require("./middleware/error.middleware");
 
 
 
@@ -30,5 +31,7 @@ app.use("/categories", categoryRoutes);
 app.use("/cart", cartRoutes);
 app.use("/orders", orderRoutes);
 app.use("/payment", paymentRoutes);
+
+app.use(errorHandler);
 
 module.exports = app;
