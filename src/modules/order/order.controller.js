@@ -1,4 +1,5 @@
 const prisma = require("../../config/db");
+const { sendSuccess, sendError } = require("../../utils/response");
 
 const getUserId = (req) => {
   return req.user?.id || req.user?.sub || null;
@@ -9,8 +10,8 @@ const placeOrder = async (req, res) => {
     const userId = getUserId(req);
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
+      return sendError(res, {
+        status: 401,
         message: "Authentication required",
       });
     }
@@ -25,23 +26,23 @@ const placeOrder = async (req, res) => {
     });
 
     if (!cart || !cart.items || cart.items.length === 0) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
         message: "Cart is empty",
       });
     }
 
     for (const item of cart.items) {
       if (!item.product || !item.product.isActive) {
-        return res.status(400).json({
-          success: false,
+        return sendError(res, {
+          status: 400,
           message: `Product ${item.product?.name || item.productId} is not available`,
         });
       }
 
       if (item.quantity > item.product.stock) {
-        return res.status(400).json({
-          success: false,
+        return sendError(res, {
+          status: 400,
           message: `Insufficient stock for ${item.product.name}`,
         });
       }
@@ -52,7 +53,7 @@ const placeOrder = async (req, res) => {
       0
     );
 
-    await prisma.$transaction(async (tx) => {
+    const order = await prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
           userId,
@@ -87,16 +88,22 @@ const placeOrder = async (req, res) => {
       await tx.cartItem.deleteMany({
         where: { cartId: cart.id },
       });
+
+      return order;
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: "Order placed successfully",
+      data: {
+        orderId: order.id,
+        totalAmount,
+        status: order.status,
+      },
     });
   } catch (error) {
     console.error("Place Order Error:", error);
-    return res.status(500).json({
-      success: false,
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }
@@ -107,8 +114,8 @@ const getMyOrders = async (req, res) => {
     const userId = getUserId(req);
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
+      return sendError(res, {
+        status: 401,
         message: "Authentication required",
       });
     }
@@ -128,14 +135,13 @@ const getMyOrders = async (req, res) => {
       orderItems: order.items,
     }));
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       data: normalizedOrders,
     });
   } catch (error) {
     console.error("Get My Orders Error:", error);
-    return res.status(500).json({
-      success: false,
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }

@@ -1,4 +1,5 @@
 const prisma = require("../../config/db");
+const { sendSuccess, sendError } = require("../../utils/response");
 
 const getUserIdFromRequest = (req) => {
   return req.user?.id || req.user?.sub || null;
@@ -10,12 +11,12 @@ const addToCart = async (req, res) => {
     const { productId, quantity } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
+      return sendError(res, { status: 401, message: "Authentication required" });
     }
 
     if (!productId || !Number.isInteger(quantity) || quantity <= 0) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
         message: "Valid productId and quantity > 0 are required",
       });
     }
@@ -26,7 +27,7 @@ const addToCart = async (req, res) => {
     });
 
     if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return sendError(res, { status: 404, message: "Product not found" });
     }
 
     const cart = await prisma.cart.upsert({
@@ -83,10 +84,10 @@ const addToCart = async (req, res) => {
       },
     });
 
-    return res.status(200).json({ success: true, data: updatedCart });
+    return sendSuccess(res, { data: updatedCart });
   } catch (error) {
     console.error("Add To Cart Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return sendError(res, { status: 500, message: "Internal server error" });
   }
 };
 
@@ -96,12 +97,12 @@ const updateCartItem = async (req, res) => {
     const { productId, quantity } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
+      return sendError(res, { status: 401, message: "Authentication required" });
     }
 
     if (!productId || !Number.isInteger(quantity) || quantity < 0) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
         message: "Valid productId and quantity >= 0 are required",
       });
     }
@@ -112,7 +113,10 @@ const updateCartItem = async (req, res) => {
     });
 
     if (!cart) {
-      return res.status(200).json({ success: true, message: "Cart not found" });
+      return sendSuccess(res, {
+        data: { items: [] },
+        message: "Cart not found",
+      });
     }
 
     if (quantity === 0) {
@@ -133,7 +137,7 @@ const updateCartItem = async (req, res) => {
         },
       });
 
-      return res.status(200).json({ success: true, data: updatedCartAfterDelete });
+      return sendSuccess(res, { data: updatedCartAfterDelete });
     }
 
     const updatedItem = await prisma.cartItem.updateMany({
@@ -146,10 +150,6 @@ const updateCartItem = async (req, res) => {
       },
     });
 
-    if (updatedItem.count === 0) {
-      return res.status(200).json({ success: true, message: "Cart item not found" });
-    }
-
     const updatedCart = await prisma.cart.findUnique({
       where: { id: cart.id },
       include: {
@@ -160,10 +160,17 @@ const updateCartItem = async (req, res) => {
       },
     });
 
-    return res.status(200).json({ success: true, data: updatedCart });
+    if (updatedItem.count === 0) {
+      return sendSuccess(res, {
+        data: updatedCart,
+        message: "Cart item not found",
+      });
+    }
+
+    return sendSuccess(res, { data: updatedCart });
   } catch (error) {
     console.error("Update Cart Item Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return sendError(res, { status: 500, message: "Internal server error" });
   }
 };
 
@@ -173,11 +180,11 @@ const removeCartItem = async (req, res) => {
     const { productId } = req.params;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
+      return sendError(res, { status: 401, message: "Authentication required" });
     }
 
     if (!productId) {
-      return res.status(400).json({ success: false, message: "productId is required" });
+      return sendError(res, { status: 400, message: "productId is required" });
     }
 
     const cart = await prisma.cart.findUnique({
@@ -186,7 +193,10 @@ const removeCartItem = async (req, res) => {
     });
 
     if (!cart) {
-      return res.status(200).json({ success: true, message: "Cart not found" });
+      return sendSuccess(res, {
+        data: { items: [] },
+        message: "Cart not found",
+      });
     }
 
     await prisma.cartItem.deleteMany({
@@ -206,10 +216,10 @@ const removeCartItem = async (req, res) => {
       },
     });
 
-    return res.status(200).json({ success: true, data: updatedCart });
+    return sendSuccess(res, { data: updatedCart });
   } catch (error) {
     console.error("Remove Cart Item Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return sendError(res, { status: 500, message: "Internal server error" });
   }
 };
 
@@ -218,7 +228,7 @@ const getCart = async (req, res) => {
     const userId = getUserIdFromRequest(req);
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
+      return sendError(res, { status: 401, message: "Authentication required" });
     }
 
     const cart = await prisma.cart.findUnique({
@@ -233,13 +243,12 @@ const getCart = async (req, res) => {
       },
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       data: cart || { items: [] },
     });
   } catch (error) {
     console.error("Get Cart Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return sendError(res, { status: 500, message: "Internal server error" });
   }
 };
 

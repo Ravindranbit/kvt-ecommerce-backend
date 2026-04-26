@@ -1,4 +1,5 @@
 const { ZodError } = require("zod");
+const { sendError } = require("../utils/response");
 
 const validate = (schema) => (req, res, next) => {
   try {
@@ -10,8 +11,9 @@ const validate = (schema) => (req, res, next) => {
     next();
   } catch (error) {
     if (error instanceof ZodError) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
+        message: "Validation failed",
         errors: error.issues || error.errors,
       });
     }

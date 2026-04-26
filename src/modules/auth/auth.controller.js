@@ -3,8 +3,7 @@ const prisma = require("../../config/db");
 const { generateUserToken } = require("../../utils/jwt");
 const { generateOTP, hashOTP, verifyOTP } = require("../../utils/otp");
 const { sendOTP } = require("../../utils/sms");
-
-
+const { sendSuccess, sendError } = require("../../utils/response");
 
 /**
  * STEP 1: Initiate Registration (Send OTP)
@@ -15,10 +14,12 @@ const initiateRegistration = async (req, res) => {
     const { name, email, phone, password } = req.body;
 
     if (!name || !email || !phone || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+      return sendError(res, {
+        status: 400,
+        message: "All fields are required",
+      });
     }
 
-    // Check if email or phone already exists
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [{ email }, { phone }],
@@ -26,132 +27,132 @@ const initiateRegistration = async (req, res) => {
     });
 
     if (existingUser) {
-      return res.status(409).json({
+      return sendError(res, {
+        status: 409,
         message: "User with email or phone already exists",
       });
     }
 
-
-  // Check last OTP for this phone
-  const lastOtp = await prisma.otpVerification.findFirst({
-  where: { phone },
-  orderBy: { createdAt: "desc" },
-});
-
-if (lastOtp) {
-  const timeDiff = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
-
-  // Cooldown: 60 seconds
-  if (timeDiff < 60) {
-    return res.status(429).json({
-      message: "Please wait before requesting a new OTP",
+    const lastOtp = await prisma.otpVerification.findFirst({
+      where: { phone },
+      orderBy: { createdAt: "desc" },
     });
-  }
 
-  // Limit: max 3 OTPs in 10 minutes
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    if (lastOtp) {
+      const timeDiff = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
 
-  const otpCount = await prisma.otpVerification.count({
-    where: {
-      phone,
-      createdAt: {
-        gte: tenMinutesAgo,
-      },
-    },
-  });
+      if (timeDiff < 60) {
+        return sendError(res, {
+          status: 429,
+          message: "Please wait before requesting a new OTP",
+        });
+      }
 
-  if (otpCount >= 3) {
-    return res.status(429).json({
-      message: "Too many OTP requests. Try again later.",
-    });
-  }
-}
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const otpCount = await prisma.otpVerification.count({
+        where: {
+          phone,
+          createdAt: {
+            gte: tenMinutesAgo,
+          },
+        },
+      });
 
-    // Generate OTP
+      if (otpCount >= 3) {
+        return sendError(res, {
+          status: 429,
+          message: "Too many OTP requests. Try again later.",
+        });
+      }
+    }
+
     const otp = generateOTP();
     const otpHash = await hashOTP(otp);
 
-    // Store OTP
     await prisma.otpVerification.create({
       data: {
         phone,
         otpHash,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       },
     });
-    
-    // Send OTP via SMS
+
     await sendOTP(phone, otp);
 
-
-    return res.status(200).json({
+    return sendSuccess(res, {
       message: "OTP sent to phone number",
+      data: { phone },
     });
   } catch (error) {
     console.error("Initiate Registration Error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return sendError(res, {
+      status: 500,
+      message: "Internal server error",
+    });
   }
 };
 
-    /**
-     * RESEND OTP
-     * POST /auth/register/resend-otp
-     */
-    const resendOtp = async (req, res) => {
-      try {
-        const { phone } = req.body;
+/**
+ * RESEND OTP
+ * POST /auth/register/resend-otp
+ */
+const resendOtp = async (req, res) => {
+  try {
+    const { phone } = req.body;
 
-        if (!phone) {
-          return res.status(400).json({
-            message: "Phone number is required",
-          });
-        }
+    if (!phone) {
+      return sendError(res, {
+        status: 400,
+        message: "Phone number is required",
+      });
+    }
 
-        // Check cooldown
-        const lastOtp = await prisma.otpVerification.findFirst({
-          where: { phone },
-          orderBy: { createdAt: "desc" },
-        });
+    const lastOtp = await prisma.otpVerification.findFirst({
+      where: { phone },
+      orderBy: { createdAt: "desc" },
+    });
 
-        if (!lastOtp) {
-          return res.status(400).json({
-            message: "No registration attempt found. Please initiate registration.",
-          });
-        }
+    if (!lastOtp) {
+      return sendError(res, {
+        status: 400,
+        message: "No registration attempt found. Please initiate registration.",
+      });
+    }
 
-        const timeDiff = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
+    const timeDiff = (Date.now() - new Date(lastOtp.createdAt).getTime()) / 1000;
 
-        if (timeDiff < 60) {
-          return res.status(429).json({
-            message: "Please wait before requesting a new OTP",
-          });
-        }
+    if (timeDiff < 60) {
+      return sendError(res, {
+        status: 429,
+        message: "Please wait before requesting a new OTP",
+      });
+    }
 
-        // Generate new OTP
-        const otp = generateOTP();
-        const otpHash = await hashOTP(otp);
+    const otp = generateOTP();
+    const otpHash = await hashOTP(otp);
 
-        await prisma.otpVerification.create({
-          data: {
-            phone,
-            otpHash,
-            expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-          },
-        });
+    await prisma.otpVerification.create({
+      data: {
+        phone,
+        otpHash,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      },
+    });
 
-        await sendOTP(phone, otp);
+    await sendOTP(phone, otp);
 
-        return res.status(200).json({
-          message: "OTP resent successfully",
-        });
-      } catch (error) {
-        console.error("Resend OTP Error:", error);
-        return res.status(500).json({
-          message: "Failed to resend OTP",
-        });
-      }
-    };
-
+    return sendSuccess(res, {
+      message: "OTP resent successfully",
+      data: { phone },
+    });
+  } catch (error) {
+    console.error("Resend OTP Error:", error);
+    return sendError(res, {
+      status: 500,
+      message: "Failed to resend OTP",
+    });
+  }
+};
 
 /**
  * STEP 2: Verify OTP & Create User
@@ -162,29 +163,33 @@ const verifyOtpAndRegister = async (req, res) => {
     const { name, email, phone, password, otp } = req.body;
 
     if (!name || !email || !phone || !password || !otp) {
-      return res.status(400).json({ message: "All fields are required" });
+      return sendError(res, {
+        status: 400,
+        message: "All fields are required",
+      });
     }
 
-    // Get latest OTP
     const otpRecord = await prisma.otpVerification.findFirst({
       where: { phone },
       orderBy: { createdAt: "desc" },
     });
 
     if (!otpRecord || otpRecord.expiresAt < new Date()) {
-      return res.status(400).json({ message: "OTP expired or invalid" });
+      return sendError(res, {
+        status: 400,
+        message: "OTP expired or invalid",
+      });
     }
 
-    // Verify OTP
     const isValidOtp = await verifyOTP(otp, otpRecord.otpHash);
     if (!isValidOtp) {
-      return res.status(400).json({ message: "Invalid OTP" });
+      return sendError(res, {
+        status: 400,
+        message: "Invalid OTP",
+      });
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
-
-    // Create user
     const user = await prisma.user.create({
       data: {
         name,
@@ -195,28 +200,28 @@ const verifyOtpAndRegister = async (req, res) => {
       },
     });
 
-    // Generate JWT
     const token = generateUserToken(user);
 
-    return res.status(201).json({
+    return sendSuccess(res, {
+      status: 201,
       message: "User registered successfully",
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+        },
       },
     });
   } catch (error) {
     console.error("Verify OTP Error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return sendError(res, {
+      status: 500,
+      message: "Internal server error",
+    });
   }
-};
-
-module.exports = {
-  initiateRegistration,
-  verifyOtpAndRegister,
 };
 
 /**
@@ -228,12 +233,12 @@ const loginUser = async (req, res) => {
     const { identifier, password } = req.body;
 
     if (!identifier || !password) {
-      return res.status(400).json({
+      return sendError(res, {
+        status: 400,
         message: "Identifier and password are required",
       });
     }
 
-    // Find user by email OR phone
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ email: identifier }, { phone: identifier }],
@@ -241,50 +246,50 @@ const loginUser = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({
+      return sendError(res, {
+        status: 401,
         message: "Invalid credentials",
       });
     }
 
     if (!user.isActive) {
-      return res.status(403).json({
+      return sendError(res, {
+        status: 403,
         message: "Account is inactive",
       });
     }
 
-    // Compare password
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      user.passwordHash
-    );
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
-      return res.status(401).json({
+      return sendError(res, {
+        status: 401,
         message: "Invalid credentials",
       });
     }
 
-    // Generate JWT
     const token = generateUserToken(user);
 
-    return res.status(200).json({
+    return sendSuccess(res, {
       message: "Login successful",
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+        },
       },
     });
   } catch (error) {
     console.error("Login Error:", error);
-    return res.status(500).json({
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }
 };
-
 
 /**
  * GET LOGGED-IN USER
@@ -292,7 +297,6 @@ const loginUser = async (req, res) => {
  */
 const getMe = async (req, res) => {
   try {
-    // req.user comes from JWT middleware
     const userId = req.user.sub;
 
     const user = await prisma.user.findUnique({
@@ -308,13 +312,21 @@ const getMe = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return sendError(res, {
+        status: 404,
+        message: "User not found",
+      });
     }
 
-    return res.status(200).json({ user });
+    return sendSuccess(res, {
+      data: user,
+    });
   } catch (error) {
     console.error("Get Me Error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return sendError(res, {
+      status: 500,
+      message: "Internal server error",
+    });
   }
 };
 

@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { sendError } = require("../utils/response");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -7,7 +8,10 @@ const requireAuth = (req, res, next) => {
 
   // Token must be in format: Bearer <token>
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Authentication required" });
+    return sendError(res, {
+      status: 401,
+      message: "Authentication required",
+    });
   }
 
   const token = authHeader.split(" ")[1];
@@ -17,7 +21,10 @@ const requireAuth = (req, res, next) => {
     req.user = decoded; // attach decoded token to request
     next();
   } catch (error) {
-    return res.status(401).json({ message: "Invalid or expired token" });
+    return sendError(res, {
+      status: 401,
+      message: "Invalid or expired token",
+    });
   }
 };
 

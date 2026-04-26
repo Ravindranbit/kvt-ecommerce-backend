@@ -1,6 +1,7 @@
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const prisma = require("../../config/db");
+const { sendSuccess, sendError } = require("../../utils/response");
 
 const getUserId = (req) => {
   return req.user?.id || req.user?.sub || null;
@@ -13,15 +14,15 @@ const createOrder = async (req, res) => {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
+      return sendError(res, {
+        status: 401,
         message: "Authentication required",
       });
     }
 
     if (!keyId || !keySecret) {
-      return res.status(503).json({
-        success: false,
+      return sendError(res, {
+        status: 503,
         message: "Payment service not configured",
       });
     }
@@ -38,8 +39,8 @@ const createOrder = async (req, res) => {
     });
 
     if (!cart || !cart.items || cart.items.length === 0) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
         message: "Cart is empty",
       });
     }
@@ -49,8 +50,8 @@ const createOrder = async (req, res) => {
     );
 
     if (hasInactiveProduct) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
         message: "Cart contains inactive or unavailable products",
       });
     }
@@ -98,8 +99,7 @@ const createOrder = async (req, res) => {
       return createdOrder;
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       data: {
         orderId: order.id,
         razorpayOrderId: razorpayOrder.id,
@@ -108,8 +108,8 @@ const createOrder = async (req, res) => {
     });
   } catch (error) {
     console.error("Create Payment Order Error:", error);
-    return res.status(500).json({
-      success: false,
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }
@@ -121,15 +121,15 @@ const verifyPayment = async (req, res) => {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
+      return sendError(res, {
+        status: 401,
         message: "Authentication required",
       });
     }
 
     if (!keySecret) {
-      return res.status(503).json({
-        success: false,
+      return sendError(res, {
+        status: 503,
         message: "Payment service not configured",
       });
     }
@@ -141,8 +141,8 @@ const verifyPayment = async (req, res) => {
     } = req.body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
         message: "razorpay_order_id, razorpay_payment_id and razorpay_signature are required",
       });
     }
@@ -155,20 +155,25 @@ const verifyPayment = async (req, res) => {
       select: {
         id: true,
         paymentStatus: true,
+        status: true,
       },
     });
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
+      return sendError(res, {
+        status: 404,
         message: "Order not found",
       });
     }
 
     if (order.paymentStatus === "PAID") {
-      return res.status(200).json({
-        success: true,
+      return sendSuccess(res, {
         message: "Payment already verified",
+        data: {
+          orderId: order.id,
+          paymentStatus: order.paymentStatus,
+          status: order.status,
+        },
       });
     }
 
@@ -178,8 +183,8 @@ const verifyPayment = async (req, res) => {
       .digest("hex");
 
     if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({
-        success: false,
+      return sendError(res, {
+        status: 400,
         message: "Invalid payment signature",
       });
     }
@@ -217,20 +222,28 @@ const verifyPayment = async (req, res) => {
     });
 
     if (!shouldClearCart) {
-      return res.status(200).json({
-        success: true,
+      return sendSuccess(res, {
         message: "Payment already verified",
+        data: {
+          orderId: order.id,
+          paymentStatus: "PAID",
+          status: "CONFIRMED",
+        },
       });
     }
 
-    return res.status(200).json({
-      success: true,
+    return sendSuccess(res, {
       message: "Payment verified successfully",
+      data: {
+        orderId: order.id,
+        paymentStatus: "PAID",
+        status: "CONFIRMED",
+      },
     });
   } catch (error) {
     console.error("Verify Payment Error:", error);
-    return res.status(500).json({
-      success: false,
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }

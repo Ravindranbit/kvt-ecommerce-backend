@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const prisma = require("../../config/db");
 const { generateAdminToken } = require("../../utils/jwt");
+const { sendSuccess, sendError } = require("../../utils/response");
 
 /**
  * ADMIN LOGIN
@@ -10,7 +11,8 @@ const adminLogin = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
+      return sendError(res, {
+        status: 400,
         message: "Email and password are required",
       });
     }
@@ -20,29 +22,27 @@ const adminLogin = async (req, res) => {
     });
 
     if (!admin) {
-      return res.status(401).json({
+      return sendError(res, {
+        status: 401,
         message: "Invalid credentials",
       });
     }
 
     if (!admin.isActive) {
-      return res.status(403).json({
+      return sendError(res, {
+        status: 403,
         message: "Admin account is inactive",
       });
     }
 
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      admin.passwordHash
-    );
-
+    const isPasswordValid = await bcrypt.compare(password, admin.passwordHash);
     if (!isPasswordValid) {
-      return res.status(401).json({
+      return sendError(res, {
+        status: 401,
         message: "Invalid credentials",
       });
     }
 
-    // Update last login
     await prisma.admin.update({
       where: { id: admin.id },
       data: { lastLogin: new Date() },
@@ -50,20 +50,23 @@ const adminLogin = async (req, res) => {
 
     const token = generateAdminToken(admin);
 
-    return res.status(200).json({
+    return sendSuccess(res, {
       message: "Admin login successful",
-      token,
-      forcePasswordChange: admin.isTemporaryPassword,
-      admin: {
-        id: admin.id,
-        name: admin.name,
-        email: admin.email,
-        role: admin.role,
+      data: {
+        token,
+        forcePasswordChange: admin.isTemporaryPassword,
+        admin: {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role,
+        },
       },
     });
   } catch (error) {
     console.error("Admin Login Error:", error);
-    return res.status(500).json({
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }
@@ -75,7 +78,8 @@ const adminLogin = async (req, res) => {
 const createAdmin = async (req, res) => {
   try {
     if (req.user.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
+      return sendError(res, {
+        status: 403,
         message: "Only Super Admin can create admins",
       });
     }
@@ -83,7 +87,8 @@ const createAdmin = async (req, res) => {
     const { name, email, role, temporaryPassword } = req.body;
 
     if (!name || !email || !role || !temporaryPassword) {
-      return res.status(400).json({
+      return sendError(res, {
+        status: 400,
         message: "Name, email, role and temporary password are required",
       });
     }
@@ -93,13 +98,13 @@ const createAdmin = async (req, res) => {
     });
 
     if (existingAdmin) {
-      return res.status(409).json({
+      return sendError(res, {
+        status: 409,
         message: "Admin already exists",
       });
     }
 
     const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-
     const admin = await prisma.admin.create({
       data: {
         name,
@@ -110,9 +115,10 @@ const createAdmin = async (req, res) => {
       },
     });
 
-    return res.status(201).json({
+    return sendSuccess(res, {
+      status: 201,
       message: "Admin created successfully",
-      admin: {
+      data: {
         id: admin.id,
         name: admin.name,
         email: admin.email,
@@ -122,7 +128,8 @@ const createAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error("Create Admin Error:", error);
-    return res.status(500).json({
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }
@@ -137,7 +144,8 @@ const changeAdminPassword = async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
     if (!oldPassword || !newPassword) {
-      return res.status(400).json({
+      return sendError(res, {
+        status: 400,
         message: "Old and new password required",
       });
     }
@@ -146,33 +154,30 @@ const changeAdminPassword = async (req, res) => {
       where: { id: adminId },
     });
 
-    const isValid = await bcrypt.compare(
-      oldPassword,
-      admin.passwordHash
-    );
-
+    const isValid = await bcrypt.compare(oldPassword, admin.passwordHash);
     if (!isValid) {
-      return res.status(401).json({
+      return sendError(res, {
+        status: 401,
         message: "Old password incorrect",
       });
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
-
     await prisma.admin.update({
       where: { id: adminId },
       data: {
-        passwordHash: newHash,
+        passwordHash: await bcrypt.hash(newPassword, 10),
         isTemporaryPassword: false,
       },
     });
 
-    return res.status(200).json({
+    return sendSuccess(res, {
       message: "Password updated successfully",
+      data: { updated: true },
     });
   } catch (error) {
     console.error("Change Password Error:", error);
-    return res.status(500).json({
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }
@@ -185,7 +190,8 @@ const changeAdminPassword = async (req, res) => {
 const listAdmins = async (req, res) => {
   try {
     if (req.user.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
+      return sendError(res, {
+        status: 403,
         message: "Only Super Admin can view admins",
       });
     }
@@ -206,12 +212,13 @@ const listAdmins = async (req, res) => {
       },
     });
 
-    return res.status(200).json({
-      admins,
+    return sendSuccess(res, {
+      data: admins,
     });
   } catch (error) {
     console.error("List Admins Error:", error);
-    return res.status(500).json({
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }
@@ -224,7 +231,8 @@ const listAdmins = async (req, res) => {
 const updateAdminStatus = async (req, res) => {
   try {
     if (req.user.role !== "SUPER_ADMIN") {
-      return res.status(403).json({
+      return sendError(res, {
+        status: 403,
         message: "Only Super Admin can update admin status",
       });
     }
@@ -233,7 +241,8 @@ const updateAdminStatus = async (req, res) => {
     const { isActive } = req.body;
 
     if (typeof isActive !== "boolean") {
-      return res.status(400).json({
+      return sendError(res, {
+        status: 400,
         message: "isActive must be true or false",
       });
     }
@@ -243,14 +252,15 @@ const updateAdminStatus = async (req, res) => {
     });
 
     if (!admin) {
-      return res.status(404).json({
+      return sendError(res, {
+        status: 404,
         message: "Admin not found",
       });
     }
 
-    // Prevent Super Admin from deactivating himself
     if (admin.id === req.user.sub) {
-      return res.status(400).json({
+      return sendError(res, {
+        status: 400,
         message: "You cannot deactivate yourself",
       });
     }
@@ -260,12 +270,14 @@ const updateAdminStatus = async (req, res) => {
       data: { isActive },
     });
 
-    return res.status(200).json({
+    return sendSuccess(res, {
       message: `Admin ${isActive ? "activated" : "deactivated"} successfully`,
+      data: { id, isActive },
     });
   } catch (error) {
     console.error("Update Admin Status Error:", error);
-    return res.status(500).json({
+    return sendError(res, {
+      status: 500,
       message: "Internal server error",
     });
   }

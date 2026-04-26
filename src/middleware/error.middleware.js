@@ -1,8 +1,10 @@
+const { sendError } = require("../utils/response");
+
 const errorHandler = (err, req, res, next) => {
   console.error(err);
 
-  res.status(err.status || 500).json({
-    success: false,
+  return sendError(res, {
+    status: err.status || 500,
     message: err.message || "Internal Server Error",
   });
 };
