@@ -147,6 +147,31 @@ const verifyPayment = async (req, res) => {
       });
     }
 
+    const order = await prisma.order.findFirst({
+      where: {
+        userId,
+        razorpayOrderId: razorpay_order_id,
+      },
+      select: {
+        id: true,
+        paymentStatus: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    if (order.paymentStatus === "PAID") {
+      return res.status(200).json({
+        success: true,
+        message: "Payment already verified",
+      });
+    }
+
     const expectedSignature = crypto
       .createHmac("sha256", keySecret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -159,43 +184,44 @@ const verifyPayment = async (req, res) => {
       });
     }
 
-    const order = await prisma.order.findFirst({
-      where: {
-        userId,
-        razorpayOrderId: razorpay_order_id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
     const cart = await prisma.cart.findUnique({
       where: { userId },
       select: { id: true },
     });
 
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: order.id },
+    const shouldClearCart = await prisma.$transaction(async (tx) => {
+      const updateResult = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          paymentStatus: {
+            not: "PAID",
+          },
+        },
         data: {
           paymentStatus: "PAID",
           status: "CONFIRMED",
         },
       });
 
+      if (updateResult.count === 0) {
+        return false;
+      }
+
       if (cart) {
         await tx.cartItem.deleteMany({
           where: { cartId: cart.id },
         });
       }
+
+      return true;
     });
+
+    if (!shouldClearCart) {
+      return res.status(200).json({
+        success: true,
+        message: "Payment already verified",
+      });
+    }
 
     return res.status(200).json({
       success: true,
