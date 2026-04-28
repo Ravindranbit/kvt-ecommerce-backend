@@ -147,7 +147,92 @@ const getMyOrders = async (req, res) => {
   }
 };
 
+const getAllOrders = async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        items: {
+          include: {
+            product: {
+              select: {
+                imageUrl: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const normalizedOrders = orders.map((order) => ({
+      ...order,
+      orderItems: order.items,
+    }));
+
+    return sendSuccess(res, {
+      data: normalizedOrders,
+    });
+  } catch (error) {
+    console.error("Get All Orders Error:", error);
+    return sendError(res, {
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+};
+
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return sendError(res, {
+        status: 400,
+        message: "Status is required",
+      });
+    }
+
+    const normalized = String(status).toUpperCase();
+    const allowed = ["PENDING", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"];
+
+    if (!allowed.includes(normalized)) {
+      return sendError(res, {
+        status: 400,
+        message: "Invalid status",
+      });
+    }
+
+    const order = await prisma.order.update({
+      where: { id },
+      data: { status: normalized },
+    });
+
+    return sendSuccess(res, {
+      message: "Order status updated",
+      data: order,
+    });
+  } catch (error) {
+    console.error("Update Order Status Error:", error);
+    return sendError(res, {
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   placeOrder,
   getMyOrders,
+  getAllOrders,
+  updateOrderStatus,
 };
