@@ -197,21 +197,45 @@ const updateCategory = async (req, res) => {
 	}
 };
 
-const deactivateCategory = async (req, res) => {
+const deleteCategory = async (req, res) => {
 	try {
 		const { id } = req.params;
 
-		const category = await prisma.category.update({
+		// Check if category has any products
+		const productsCount = await prisma.product.count({
+			where: { categoryId: id },
+		});
+
+		if (productsCount > 0) {
+			return res.status(400).json({
+				success: false,
+				message: `Cannot delete category: ${productsCount} products are still linked to it. Please move or delete the products first.`,
+			});
+		}
+
+		// Check if category has subcategories
+		const childrenCount = await prisma.category.count({
+			where: { parentId: id },
+		});
+
+		if (childrenCount > 0) {
+			return res.status(400).json({
+				success: false,
+				message: `Cannot delete category: it has ${childrenCount} subcategories. Delete them first.`,
+			});
+		}
+
+		await prisma.category.delete({
 			where: { id },
-			data: { isActive: false },
 		});
 
 		return res.status(200).json({
 			success: true,
-			data: category,
+			message: "Category deleted permanently",
+			data: { id },
 		});
 	} catch (error) {
-		console.error("Deactivate Category Error:", error);
+		console.error("Delete Category Error:", error);
 
 		if (error.code === "P2025") {
 			return res.status(404).json({
@@ -342,7 +366,7 @@ const getCategoryBySlug = async (req, res) => {
 module.exports = {
 	createCategory,
 	updateCategory,
-	deactivateCategory,
+	deleteCategory,
 	getAllCategoriesAdmin,
 	getCategoriesTree,
 	getCategoryBySlug,

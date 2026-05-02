@@ -4,7 +4,7 @@ const requireAdmin = require("../../middleware/admin.middleware");
 const {
 	createCategory,
 	updateCategory,
-	deactivateCategory,
+	deleteCategory,
 	getAllCategoriesAdmin,
 	getCategoriesTree,
 	getCategoryBySlug,
@@ -15,7 +15,7 @@ const router = express.Router();
 /* ---------- ADMIN ROUTES ---------- */
 router.post("/", requireAdmin, createCategory);
 router.put("/:id", requireAdmin, updateCategory);
-router.patch("/:id/deactivate", requireAdmin, deactivateCategory);
+router.delete("/:id", requireAdmin, deleteCategory);
 router.get("/admin/all", requireAdmin, getAllCategoriesAdmin);
 
 /* ---------- PUBLIC ROUTES ---------- */
