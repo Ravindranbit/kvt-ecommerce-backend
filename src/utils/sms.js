@@ -1,8 +1,14 @@
 const axios = require("axios");
 
 const sendOTP = async (phone, otp) => {
+  const smsMode = String(process.env.SMS_MODE || "DEV").toUpperCase();
+  const apiKey = process.env.FAST2SMS_API_KEY;
+
   // DEV MODE → Just log OTP
-  if (process.env.SMS_MODE === "DEV") {
+  if (smsMode !== "PROD" || !apiKey) {
+    if (smsMode === "PROD" && !apiKey) {
+      console.warn("FAST2SMS_API_KEY missing. Falling back to DEV OTP mode.");
+    }
     console.log("DEV OTP:", otp);
     return { success: true, mode: "DEV" };
   }
@@ -18,7 +24,7 @@ const sendOTP = async (phone, otp) => {
       },
       {
         headers: {
-          authorization: process.env.FAST2SMS_API_KEY,
+          authorization: apiKey,
           "Content-Type": "application/json",
         },
       }
