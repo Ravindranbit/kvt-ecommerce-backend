@@ -15,10 +15,24 @@ model User {
   passwordHash    String
   isPhoneVerified Boolean  @default(false)
   isActive        Boolean  @default(true)
+  role            UserRole @default(BUYER)
+  
+  // Vendor Info
+  storeName        String?
+  storeDescription String?
+  
   cart            Cart?
   orders          Order[]
+  wishlists       Wishlist[]
+  products        Product[] @relation("VendorProducts")
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+enum UserRole {
+  BUYER
+  SELLER
 }
 
 model Admin {
@@ -48,15 +62,36 @@ model Product {
   price       Float
   stock       Int
   imageUrl    String?
+  images      String[]    @default([])
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
+  
+  vendorId    String?
+  vendor      User?       @relation("VendorProducts", fields: [vendorId], references: [id])
+  
   cartItems   CartItem[]
   orderItems  OrderItem[]
+  wishlists   Wishlist[]
   isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@index([categoryId])
+  @@index([vendorId])
+}
+
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
 }
 
 model Category {
@@ -107,6 +142,13 @@ model Order {
   status          OrderStatus @default(PENDING)
   razorpayOrderId String?
   paymentStatus   String      @default("PENDING")
+  
+  // Shipping Address
+  shippingAddress String?
+  city            String?
+  zip             String?
+  phone           String?
+  
   items           OrderItem[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
