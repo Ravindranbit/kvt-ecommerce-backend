@@ -330,10 +330,78 @@ const getMe = async (req, res) => {
   }
 };
 
+/**
+ * REGISTER VENDOR
+ * POST /auth/register-vendor
+ */
+const registerVendor = async (req, res) => {
+  try {
+    const { name, email, phone, password, storeName, storeDescription } = req.body;
+
+    if (!name || !email || !phone || !password || !storeName) {
+      return sendError(res, {
+        status: 400,
+        message: "Required fields: name, email, phone, password, storeName",
+      });
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { phone }],
+      },
+    });
+
+    if (existingUser) {
+      return sendError(res, {
+        status: 409,
+        message: "User with email or phone already exists",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        phone,
+        passwordHash,
+        role: "SELLER",
+        storeName,
+        storeDescription,
+        isPhoneVerified: true, // Auto-verify for now or use OTP flow
+      },
+    });
+
+    const token = generateUserToken(user);
+
+    return sendSuccess(res, {
+      status: 201,
+      message: "Vendor registered successfully",
+      data: {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          storeName: user.storeName,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Register Vendor Error:", error);
+    return sendError(res, {
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   initiateRegistration,
   verifyOtpAndRegister,
   loginUser,
   getMe,
   resendOtp,
+  registerVendor,
 };

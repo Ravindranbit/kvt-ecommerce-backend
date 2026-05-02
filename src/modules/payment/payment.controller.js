@@ -73,6 +73,8 @@ const createOrder = async (req, res) => {
       currency: "INR",
     });
 
+    const { shippingAddress, city, zip, phone } = req.body;
+
     const order = await prisma.$transaction(async (tx) => {
       const createdOrder = await tx.order.create({
         data: {
@@ -81,6 +83,10 @@ const createOrder = async (req, res) => {
           status: "PENDING",
           razorpayOrderId: razorpayOrder.id,
           paymentStatus: "PENDING",
+          shippingAddress,
+          city,
+          zip,
+          phone,
         },
       });
 

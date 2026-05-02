@@ -230,9 +230,51 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+const getVendorOrders = async (req, res) => {
+  try {
+    const vendorId = req.user.sub;
+
+    const orders = await prisma.order.findMany({
+      where: {
+        items: {
+          some: {
+            product: {
+              vendorId: vendorId,
+            },
+          },
+        },
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true },
+        },
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return sendSuccess(res, {
+      data: orders,
+    });
+  } catch (error) {
+    console.error("Get Vendor Orders Error:", error);
+    return sendError(res, {
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   placeOrder,
   getMyOrders,
   getAllOrders,
   updateOrderStatus,
+  getVendorOrders,
 };
