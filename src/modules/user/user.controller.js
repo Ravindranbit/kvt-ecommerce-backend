@@ -39,8 +39,39 @@ const getProductBasics = async (productId) => {
 
 const getMyProfile = async (req, res) => {
   try {
+    const { sub, type } = req.user;
+
+    if (type === 'ADMIN') {
+      const admin = await prisma.admin.findUnique({
+        where: { id: sub },
+      });
+
+      if (!admin) {
+        return sendError(res, {
+          status: 404,
+          message: 'Admin not found',
+        });
+      }
+
+      const adminState = require('../admin/admin.storage').readState();
+      const profile = adminState.adminProfiles?.[admin.id] || {};
+
+      return sendSuccess(res, {
+        data: {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          phone: profile.phone || '',
+          role: admin.role,
+          avatar: profile.avatar || '',
+          joinedDate: formatDate(admin.createdAt),
+          type: 'ADMIN',
+        },
+      });
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: req.user.sub },
+      where: { id: sub },
       select: {
         id: true,
         name: true,
@@ -75,6 +106,7 @@ const getMyProfile = async (req, res) => {
         addressesCount: addresses.length,
         paymentMethodsCount: paymentMethods.length,
         wishlistCount,
+        type: 'USER',
       },
     });
   } catch (error) {
@@ -88,8 +120,58 @@ const getMyProfile = async (req, res) => {
 
 const updateMyProfile = async (req, res) => {
   try {
+    const { sub, type } = req.user;
     const { name, email, phone, avatar } = req.body;
-    const user = await prisma.user.findUnique({ where: { id: req.user.sub } });
+
+    if (type === 'ADMIN') {
+      const admin = await prisma.admin.findUnique({ where: { id: sub } });
+
+      if (!admin) {
+        return sendError(res, {
+          status: 404,
+          message: 'Admin not found',
+        });
+      }
+
+      const updatedAdmin = await prisma.admin.update({
+        where: { id: sub },
+        data: {
+          name: name || admin.name,
+          email: email || admin.email,
+        },
+      });
+
+      const adminStorage = require('../admin/admin.storage');
+      adminStorage.updateState((state) => ({
+        ...state,
+        adminProfiles: {
+          ...(state.adminProfiles || {}),
+          [sub]: {
+            ...(state.adminProfiles?.[sub] || {}),
+            phone: phone !== undefined ? phone : state.adminProfiles?.[sub]?.phone || '',
+            avatar: avatar !== undefined ? avatar : state.adminProfiles?.[sub]?.avatar || '',
+          },
+        },
+      }));
+
+      const profile = adminStorage.readState().adminProfiles?.[sub] || {};
+
+      return sendSuccess(res, {
+        message: 'Admin profile updated successfully',
+        data: {
+          id: updatedAdmin.id,
+          name: updatedAdmin.name,
+          email: updatedAdmin.email,
+          phone: profile.phone || '',
+          role: updatedAdmin.role,
+          avatar: profile.avatar || '',
+          joinedDate: formatDate(updatedAdmin.createdAt),
+          type: 'ADMIN',
+        },
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: sub } });
 
     if (!user) {
       return sendError(res, {
@@ -133,6 +215,7 @@ const updateMyProfile = async (req, res) => {
         ...updatedUser,
         avatar: avatar || readState().profiles?.[user.id]?.avatar || '',
         joinedDate: formatDate(updatedUser.createdAt),
+        type: 'USER',
       },
     });
   } catch (error) {
