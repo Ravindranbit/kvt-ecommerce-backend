@@ -71,7 +71,7 @@ const getAllDescendantIds = (categories, parentId) => {
 
 const createCategory = async (req, res) => {
 	try {
-		const { name, description, parentId } = req.body;
+		const { name, description, parentId, showInHeader, showInFilters } = req.body;
 
 		if (!name || !name.trim()) {
 			return res.status(400).json({
@@ -102,6 +102,8 @@ const createCategory = async (req, res) => {
 				slug,
 				description: description?.trim() || null,
 				parentId: parentId || null,
+				showInHeader: typeof showInHeader === "boolean" ? showInHeader : undefined,
+				showInFilters: typeof showInFilters === "boolean" ? showInFilters : undefined,
 			},
 		});
 
@@ -121,7 +123,7 @@ const createCategory = async (req, res) => {
 const updateCategory = async (req, res) => {
 	try {
 		const { id } = req.params;
-		const { name, description, parentId, isActive } = req.body;
+		const { name, description, parentId, isActive, showInHeader, showInFilters } = req.body;
 
 		const existingCategory = await prisma.category.findUnique({
 			where: { id },
@@ -181,6 +183,8 @@ const updateCategory = async (req, res) => {
 						: description?.trim() || null,
 				parentId: parentId === undefined ? undefined : parentId || null,
 				isActive: typeof isActive === "boolean" ? isActive : undefined,
+				showInHeader: typeof showInHeader === "boolean" ? showInHeader : undefined,
+				showInFilters: typeof showInFilters === "boolean" ? showInFilters : undefined,
 			},
 		});
 
@@ -296,6 +300,8 @@ const getCategoriesTree = async (req, res) => {
 				description: true,
 				parentId: true,
 				isActive: true,
+				showInHeader: true,
+				showInFilters: true,
 			},
 			orderBy: [{ name: "asc" }],
 		});
